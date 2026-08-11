@@ -9,6 +9,7 @@ import MyOrdersPage     from './pages/MyOrdersPage';
 import OwnerPortalPage  from './pages/OwnerPortalPage';
 import RestaurantsPage  from './pages/RestaurantsPage';
 import MenuItemsPage    from './pages/MenuItemsPage';
+import ProfilePage      from './pages/ProfilePage';
 
 // Smart default redirect based on role
 function HomeRedirect() {
@@ -35,6 +36,10 @@ export default function App() {
 
             <Route path="/my-orders" element={
               <ProtectedRoute><MyOrdersPage /></ProtectedRoute>
+            } />
+
+            <Route path="/profile" element={
+              <ProtectedRoute><ProfilePage /></ProtectedRoute>
             } />
 
             <Route path="/owner" element={

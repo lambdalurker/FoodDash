@@ -1,8 +1,18 @@
 const Joi = require('joi');
 const { Op } = require('sequelize');
-const { Restaurant, User, MenuItem } = require('../models');
+const { Restaurant, User, MenuItem, Review } = require('../models');
 const fs = require('fs');
 const path = require('path');
+
+const getRatingStats = async (restaurantId) => {
+  const reviews = await Review.findAll({ where: { restaurantId } });
+  if (reviews.length === 0) return { rating: 0, count: 0 };
+  const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+  return {
+    rating: parseFloat((sum / reviews.length).toFixed(1)),
+    count: reviews.length,
+  };
+};
 
 const restaurantSchema = Joi.object({
   name: Joi.string().min(2).max(100).required().messages({
@@ -50,7 +60,14 @@ const getAll = async (req, res) => {
       order: [['createdAt', 'DESC']],
     });
 
-    return res.status(200).json({ restaurants });
+    const restaurantsWithStats = await Promise.all(
+      restaurants.map(async (r) => {
+        const stats = await getRatingStats(r.id);
+        return { ...r.toJSON(), ...stats };
+      })
+    );
+
+    return res.status(200).json({ restaurants: restaurantsWithStats });
   } catch (err) {
     console.error('Get restaurants error:', err);
     return res.status(500).json({ error: 'Failed to fetch restaurants.' });
@@ -71,7 +88,10 @@ const getOne = async (req, res) => {
       return res.status(404).json({ error: 'Restaurant not found.' });
     }
 
-    return res.status(200).json({ restaurant });
+    const stats = await getRatingStats(restaurant.id);
+    const fullRestaurant = { ...restaurant.toJSON(), ...stats };
+
+    return res.status(200).json({ restaurant: fullRestaurant });
   } catch (err) {
     console.error('Get restaurant error:', err);
     return res.status(500).json({ error: 'Failed to fetch restaurant.' });

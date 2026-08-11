@@ -39,6 +39,8 @@ export default function Navbar() {
           </>
         )}
 
+        {user && <NavLink to="/profile" onClick={close}>Profile</NavLink>}
+
         {user ? (
           <>
             <span className="navbar-user">

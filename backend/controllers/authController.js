@@ -86,4 +86,78 @@ const login = async (req, res) => {
 // GET /api/auth/me
 const me = async (req, res) => res.status(200).json({ user: req.user });
 
-module.exports = { register, login, me };
+const profileUpdateSchema = Joi.object({
+  username: Joi.string().alphanum().min(3).max(50).optional().messages({
+    'string.alphanum': 'Username must only contain letters and numbers.',
+    'string.min':      'Username must be at least 3 characters.',
+  }),
+  email: Joi.string().email({ tlds: { allow: false } }).optional().messages({
+    'string.email':  'Please provide a valid email address.',
+  }),
+  password: Joi.string().min(6).max(100).optional().allow('').messages({
+    'string.min':   'Password must be at least 6 characters.',
+  }),
+  defaultAddress: Joi.string().max(300).optional().allow(''),
+});
+
+// GET /api/auth/profile
+const getProfile = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id, { attributes: { exclude: ['password'] } });
+    return res.status(200).json({ user });
+  } catch (err) {
+    console.error('Get profile error:', err);
+    return res.status(500).json({ error: 'Server error fetching profile.' });
+  }
+};
+
+// PUT /api/auth/profile
+const updateProfile = async (req, res) => {
+  const { error, value } = profileUpdateSchema.validate(req.body, { abortEarly: false });
+  if (error) return res.status(400).json({ error: 'Validation failed.',
+    details: error.details.map((d) => d.message) });
+
+  const { username, email, password, defaultAddress } = value;
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+
+    if (username && username !== user.username) {
+      const exists = await User.findOne({ where: { username } });
+      if (exists) return res.status(409).json({ error: 'That username is already taken.' });
+      user.username = username;
+    }
+
+    if (email && email !== user.email) {
+      const exists = await User.findOne({ where: { email } });
+      if (exists) return res.status(409).json({ error: 'An account with that email already exists.' });
+      user.email = email;
+    }
+
+    if (password && password.trim() !== '') {
+      user.password = await bcrypt.hash(password, 12);
+    }
+
+    if (defaultAddress !== undefined) {
+      user.defaultAddress = defaultAddress;
+    }
+
+    await user.save();
+
+    return res.status(200).json({
+      message: 'Profile updated successfully.',
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        defaultAddress: user.defaultAddress
+      }
+    });
+  } catch (err) {
+    console.error('Update profile error:', err);
+    return res.status(500).json({ error: 'Server error. Please try again.' });
+  }
+};
+
+module.exports = { register, login, me, getProfile, updateProfile };

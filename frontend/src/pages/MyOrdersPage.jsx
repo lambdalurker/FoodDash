@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getMyOrders } from '../api/orders';
+import { useNavigate } from 'react-router-dom';
+import { getMyOrders, cancelOrder } from '../api/orders';
 import ErrorMessage from '../components/ErrorMessage';
 
 const STATUS_LABEL = {
@@ -20,7 +21,39 @@ const STATUS_CLASS = {
   cancelled:        'badge-red',
 };
 
+const STEPS = ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'];
+const STEP_LABELS = ['Placed', 'Confirmed', 'Preparing', 'On the Way', 'Delivered'];
+
+function OrderTracker({ status }) {
+  if (status === 'cancelled') {
+    return (
+      <div className="tracker-cancelled">
+        <span className="dot-red"></span> Order Cancelled
+      </div>
+    );
+  }
+  const currentIndex = STEPS.indexOf(status);
+  return (
+    <div className="order-tracker">
+      {STEPS.map((step, idx) => {
+        const isCompleted = idx <= currentIndex;
+        const isActive = idx === currentIndex;
+        return (
+          <div key={step} className={`tracker-step ${isCompleted ? 'completed' : ''} ${isActive ? 'active' : ''}`}>
+            <div className="tracker-bubble">
+              {isCompleted ? '✓' : idx + 1}
+            </div>
+            <div className="tracker-label">{STEP_LABELS[idx]}</div>
+            {idx < STEPS.length - 1 && <div className="tracker-line" />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function MyOrdersPage() {
+  const navigate = useNavigate();
   const [orders, setOrders]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
@@ -31,6 +64,27 @@ export default function MyOrdersPage() {
       .catch(() => setError('Failed to load your orders.'))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleCancel = async (orderId) => {
+    if (!window.confirm('Are you sure you want to cancel this order?')) return;
+    try {
+      await cancelOrder(orderId);
+      // Refresh list
+      const r = await getMyOrders();
+      setOrders(r.data.orders);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to cancel order.');
+    }
+  };
+
+  const handleReorder = (order) => {
+    localStorage.setItem('fooddash_reorder_restaurant_id', order.restaurantId);
+    localStorage.setItem('fooddash_reorder_items', JSON.stringify(order.items.map(item => ({
+      id: item.menuItemId,
+      quantity: item.quantity
+    }))));
+    navigate('/browse');
+  };
 
   if (loading) return <p className="loading-text">Loading your orders…</p>;
   if (error)   return <div className="page"><ErrorMessage error={error} /></div>;
@@ -61,6 +115,9 @@ export default function MyOrdersPage() {
               </span>
             </div>
 
+            {/* Visual Tracking steps bar */}
+            <OrderTracker status={order.status} />
+
             <div className="order-items-list">
               {order.items?.map((line) => (
                 <div key={line.id} className="order-line">
@@ -76,8 +133,20 @@ export default function MyOrdersPage() {
             </div>
 
             {order.notes && (
-              <p className="order-notes">Note: {order.notes}</p>
+              <p className="order-notes" style={{ margin: '0.4rem 0 0 0' }}>Note: {order.notes}</p>
             )}
+
+            {/* Action buttons */}
+            <div className="order-card-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+              {order.status === 'pending' && (
+                <button className="btn btn-outline btn-sm" style={{ color: '#dc2626', borderColor: '#fca5a5' }} onClick={() => handleCancel(order.id)}>
+                  Cancel Order
+                </button>
+              )}
+              <button className="btn btn-outline btn-sm" onClick={() => handleReorder(order)}>
+                Reorder Items
+              </button>
+            </div>
           </div>
         ))}
       </div>

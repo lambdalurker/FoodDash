@@ -138,4 +138,27 @@ const updateStatus = async (req, res) => {
   }
 };
 
-module.exports = { placeOrder, myOrders, ownerOrders, updateStatus };
+// PATCH /api/orders/:id/cancel
+const cancelOrder = async (req, res) => {
+  try {
+    const order = await Order.findByPk(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+
+    if (order.userId !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'You do not have permission to cancel this order.' });
+    }
+
+    if (order.status !== 'pending') {
+      return res.status(400).json({ error: 'Only pending orders can be cancelled.' });
+    }
+
+    await order.update({ status: 'cancelled' });
+    const full = await Order.findByPk(order.id, { include: fullIncludes });
+    return res.status(200).json({ message: 'Order cancelled successfully.', order: full });
+  } catch (err) {
+    console.error('Cancel order error:', err);
+    return res.status(500).json({ error: 'Failed to cancel order.' });
+  }
+};
+
+module.exports = { placeOrder, myOrders, ownerOrders, updateStatus, cancelOrder };

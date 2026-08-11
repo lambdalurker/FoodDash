@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getRestaurants } from '../api/restaurants';
+import { getRestaurants, getRestaurant } from '../api/restaurants';
 import { getMenuItems } from '../api/menuItems';
 import { placeOrder } from '../api/orders';
+import { getReviews, createReview } from '../api/reviews';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import ErrorMessage from '../components/ErrorMessage';
@@ -35,6 +36,15 @@ export default function BrowsePage() {
   const [orderSuccess, setOrderSuccess] = useState(null);
   const [placing, setPlacing]           = useState(false);
 
+  // Reviews
+  const [reviews, setReviews]           = useState([]);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError]   = useState('');
+  const [reviewSuccess, setReviewSuccess] = useState('');
+  const [reviewHover, setReviewHover]   = useState(0);
+
   // ── fetch restaurants ──────────────────────────────────────
   const fetchRestaurants = useCallback(async () => {
     setLoading(true); setFetchError(null);
@@ -53,6 +63,50 @@ export default function BrowsePage() {
 
   useEffect(() => { fetchRestaurants(); }, [fetchRestaurants]);
 
+  // ── reorder hook: triggered after restaurants list is loaded ──
+  useEffect(() => {
+    if (loading) return;
+    const rid   = localStorage.getItem('fooddash_reorder_restaurant_id');
+    const items = localStorage.getItem('fooddash_reorder_items');
+    if (!rid || !items) return;
+    localStorage.removeItem('fooddash_reorder_restaurant_id');
+    localStorage.removeItem('fooddash_reorder_items');
+
+    const parsedItems = JSON.parse(items);
+    // Find restaurant in already-loaded list first, then fall back to a fetch
+    const tryOpen = async () => {
+      let restaurant = restaurants.find((r) => r.id === parseInt(rid, 10));
+      if (!restaurant) {
+        try { restaurant = (await getRestaurant(rid)).data.restaurant; } catch { return; }
+      }
+      // Load menu
+      setSelected(restaurant);
+      setCart({});
+      setFilterCategory('');
+      setOrderError([]);
+      setOrderSuccess(null);
+      if (user?.defaultAddress) setAddress(user.defaultAddress);
+      setMenuLoading(true);
+      try {
+        const menuRes = await getMenuItems({ restaurantId: restaurant.id, isAvailable: 'true' });
+        const menuMap = Object.fromEntries(menuRes.data.items.map((i) => [i.id, i]));
+        const reorderCart = {};
+        parsedItems.forEach(({ id, quantity }) => {
+          if (menuMap[id]) reorderCart[id] = { item: menuMap[id], quantity };
+        });
+        setMenuItems(menuRes.data.items);
+        setCart(reorderCart);
+        setOrderSuccess('Cart pre-filled from your previous order. Review and place your order!');
+      } catch {
+        setMenuItems([]);
+      } finally {
+        setMenuLoading(false);
+      }
+    };
+    tryOpen();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
   // ── open restaurant / load menu ───────────────────────────
   const openRestaurant = async (r) => {
     setSelected(r);
@@ -60,10 +114,16 @@ export default function BrowsePage() {
     setFilterCategory('');
     setOrderError([]);
     setOrderSuccess(null);
+    if (user?.defaultAddress) {
+      setAddress(user.defaultAddress);
+    } else {
+      setAddress('');
+    }
     setMenuLoading(true);
     try {
       const res = await getMenuItems({ restaurantId: r.id, isAvailable: 'true' });
       setMenuItems(res.data.items);
+      fetchReviews(r.id);
     } catch {
       setMenuItems([]);
     } finally {
@@ -74,6 +134,33 @@ export default function BrowsePage() {
   const closeRestaurant = () => {
     setSelected(null); setMenuItems([]); setCart({});
     setOrderError([]); setOrderSuccess(null);
+    setReviews([]); setReviewRating(0); setReviewComment(''); setReviewError(''); setReviewSuccess('');
+  };
+
+  // fetch reviews when a restaurant is opened
+  const fetchReviews = useCallback(async (restaurantId) => {
+    try {
+      const res = await getReviews(restaurantId);
+      setReviews(res.data.reviews);
+    } catch { setReviews([]); }
+  }, []);
+
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    setReviewError(''); setReviewSuccess('');
+    if (reviewRating === 0) { setReviewError('Please select a star rating.'); return; }
+    setReviewSubmitting(true);
+    try {
+      await createReview(selected.id, { rating: reviewRating, comment: reviewComment });
+      setReviewSuccess('Review submitted!');
+      setReviewRating(0); setReviewComment('');
+      fetchReviews(selected.id);
+    } catch (err) {
+      const d = err.response?.data?.error || err.response?.data?.details;
+      setReviewError(Array.isArray(d) ? d.join(' ') : (d || 'Failed to submit review.'));
+    } finally {
+      setReviewSubmitting(false);
+    }
   };
 
   // ── cart helpers ──────────────────────────────────────────
@@ -274,6 +361,75 @@ export default function BrowsePage() {
             )}
           </aside>
         </div>
+
+          {/* ─── Reviews Section ─── */}
+          <div className="reviews-section">
+            <h2 style={{ marginBottom: '0.75rem' }}>Ratings &amp; Reviews
+              {selected.avgRating > 0 && (
+                <span className="review-stats-badge" style={{ marginLeft: '0.75rem' }}>
+                  {'★'.repeat(Math.round(selected.avgRating))}{'☆'.repeat(5 - Math.round(selected.avgRating))}
+                  {' '}{parseFloat(selected.avgRating).toFixed(1)}
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> ({selected.reviewCount} review{selected.reviewCount !== 1 ? 's' : ''})</span>
+                </span>
+              )}
+            </h2>
+
+            {user?.role === 'user' && (
+              <form className="review-form" onSubmit={handleSubmitReview}>
+                <p style={{ fontWeight: 600, marginBottom: '0.35rem' }}>Leave a review</p>
+                <div className="rating-input">
+                  {[1,2,3,4,5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      className={`star-btn ${star <= (reviewHover || reviewRating) ? 'selected' : ''}`}
+                      onMouseEnter={() => setReviewHover(star)}
+                      onMouseLeave={() => setReviewHover(0)}
+                      onClick={() => setReviewRating(star)}
+                      aria-label={`Rate ${star} stars`}
+                    >★</button>
+                  ))}
+                </div>
+                <div className="form-group">
+                  <textarea
+                    rows={3}
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    placeholder="Share your experience (optional)…"
+                  />
+                </div>
+                {reviewError && <p style={{ color: '#dc2626', fontSize: '0.83rem', marginBottom: '0.5rem' }}>{reviewError}</p>}
+                {reviewSuccess && <p style={{ color: '#16a34a', fontSize: '0.83rem', marginBottom: '0.5rem' }}>{reviewSuccess}</p>}
+                <button type="submit" className="btn btn-primary btn-sm" disabled={reviewSubmitting}>
+                  {reviewSubmitting ? 'Submitting…' : 'Submit Review'}
+                </button>
+              </form>
+            )}
+
+            {reviews.length === 0
+              ? <p className="empty-state" style={{ paddingTop: '0.75rem' }}>No reviews yet. Be the first!</p>
+              : (
+                <div className="reviews-list">
+                  {reviews.map((rv) => (
+                    <div key={rv.id} className="review-card">
+                      <div className="review-header">
+                        <span className="review-author">
+                          {rv.customer?.username || 'Customer'}
+                          {rv.isVerified && <span className="verified-badge">✓ Verified</span>}
+                        </span>
+                        <span className="review-date">
+                          {'★'.repeat(rv.rating)}{'☆'.repeat(5 - rv.rating)}
+                          {' · '}
+                          {new Date(rv.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                      </div>
+                      {rv.comment && <p className="review-comment">{rv.comment}</p>}
+                    </div>
+                  ))}
+                </div>
+              )
+            }
+          </div>
       </div>
     );
   }

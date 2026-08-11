@@ -43,7 +43,7 @@ const validateMenu = ({ name, price, category, restaurantId }) => {
 
 export default function OwnerPortalPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState('orders'); // 'orders' | 'restaurants' | 'menu'
+  const [tab, setTab] = useState('orders'); // 'orders' | 'restaurants' | 'menu' | 'insights'
 
   /* ── Orders state ───────────────────────────────────────── */
   const [orders, setOrders]         = useState([]);
@@ -63,7 +63,7 @@ export default function OwnerPortalPage() {
     finally  { setOL(false); }
   }, [statusFilter]);
 
-  useEffect(() => { if (tab === 'orders') fetchOrders(); }, [tab, fetchOrders]);
+  useEffect(() => { if (tab === 'orders' || tab === 'insights') fetchOrders(); }, [tab, fetchOrders]);
 
   const handleStatusChange = async (orderId, status) => {
     setUpdatingId(orderId);
@@ -218,7 +218,7 @@ export default function OwnerPortalPage() {
 
       {/* Tab bar */}
       <div className="portal-tabs">
-        {[['orders','Orders'],['restaurants','My Restaurants'],['menu','Menu Items']].map(([key,label]) => (
+        {[['orders','Orders'],['restaurants','My Restaurants'],['menu','Menu Items'],['insights','Insights']].map(([key,label]) => (
           <button key={key} className={`portal-tab ${tab === key ? 'active' : ''}`} onClick={() => setTab(key)}>
             {label}
             {key === 'orders' && orders.filter((o) => o.status === 'pending').length > 0 && (
@@ -519,6 +519,84 @@ export default function OwnerPortalPage() {
           )}
         </div>
       )}
+      {/* ── Insights tab ── */}
+      {tab === 'insights' && (() => {
+        const totalRevenue = orders
+          .filter((o) => o.status !== 'cancelled')
+          .reduce((s, o) => s + parseFloat(o.totalAmount || 0), 0);
+        const statusCounts = orders.reduce((acc, o) => {
+          acc[o.status] = (acc[o.status] || 0) + 1; return acc;
+        }, {});
+        // Aggregate item quantities across all orders
+        const itemMap = {};
+        orders.forEach((o) => (o.items || []).forEach((line) => {
+          const key = line.itemName;
+          itemMap[key] = (itemMap[key] || 0) + line.quantity;
+        }));
+        const topItems = Object.entries(itemMap)
+          .sort((a, b) => b[1] - a[1]).slice(0, 5);
+        const maxQty = topItems[0]?.[1] || 1;
+
+        return (
+          <div>
+            {ordersLoading && <p className="loading-text">Loading insights…</p>}
+            {!ordersLoading && (
+              <>
+                <div className="stats-grid">
+                  <div className="stat-card">
+                    <span className="stat-value">£{totalRevenue.toFixed(2)}</span>
+                    <span className="stat-label">Total Revenue</span>
+                  </div>
+                  <div className="stat-card">
+                    <span className="stat-value">{orders.length}</span>
+                    <span className="stat-label">Total Orders</span>
+                  </div>
+                  <div className="stat-card">
+                    <span className="stat-value">{statusCounts['pending'] || 0}</span>
+                    <span className="stat-label">Pending</span>
+                  </div>
+                  <div className="stat-card">
+                    <span className="stat-value">{statusCounts['delivered'] || 0}</span>
+                    <span className="stat-label">Delivered</span>
+                  </div>
+                  <div className="stat-card">
+                    <span className="stat-value">{statusCounts['cancelled'] || 0}</span>
+                    <span className="stat-label">Cancelled</span>
+                  </div>
+                  <div className="stat-card">
+                    <span className="stat-value">
+                      {orders.length > 0 ? `£${(totalRevenue / Math.max(orders.filter(o=>o.status!=='cancelled').length,1)).toFixed(2)}` : '£0.00'}
+                    </span>
+                    <span className="stat-label">Avg. Order Value</span>
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+                  <h3 style={{ marginBottom: '0.75rem', fontWeight: 600 }}>🔥 Top-Selling Items</h3>
+                  {topItems.length === 0
+                    ? <p className="empty-state" style={{ paddingTop: '0.5rem' }}>No order data yet.</p>
+                    : (
+                      <div className="popular-items-list">
+                        {topItems.map(([name, qty]) => (
+                          <div key={name} className="popular-item-row">
+                            <span>{name}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <div style={{ width: '120px', height: '6px', background: 'var(--border)', borderRadius: '999px', overflow: 'hidden' }}>
+                                <div style={{ width: `${(qty / maxQty) * 100}%`, height: '100%', background: 'var(--primary)', borderRadius: '999px' }} />
+                              </div>
+                              <span style={{ fontWeight: 600, minWidth: '28px', textAlign: 'right' }}>{qty}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  }
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
