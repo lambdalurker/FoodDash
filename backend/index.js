@@ -43,7 +43,7 @@ const start = async () => {
   try {
     await sequelize.authenticate();
     console.log('Database connection established.');
-    await sequelize.sync({ alter: true });
+    await sequelize.sync();   // plain sync — safe on a fresh DB; avoids SQLite alter quirks
     console.log('Database synced.');
     app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
   } catch (err) {
