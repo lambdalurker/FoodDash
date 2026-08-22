@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import ErrorMessage from '../components/ErrorMessage';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ImagePreview from '../components/ImagePreview';
+import { getImageUrl } from '../api/client';
 
 const CATEGORY_OPTIONS = ['Starter', 'Main Course', 'Dessert', 'Drink', 'Side', 'Snack', 'Vegetarian', 'Vegan', 'Other'];
 
@@ -244,7 +245,7 @@ export default function MenuItemsPage() {
                     <tr key={item.id} className={!item.isAvailable ? 'row-unavailable' : ''}>
                       <td>
                         {item.imageUrl ? (
-                          <img src={item.imageUrl} alt={item.name} className="table-img" />
+                          <img src={getImageUrl(item.imageUrl)} alt={item.name} className="table-img" />
                         ) : (
                           <span className="table-img-placeholder">—</span>
                         )}

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import ErrorMessage from '../components/ErrorMessage';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ImagePreview from '../components/ImagePreview';
+import { getImageUrl } from '../api/client';
 
 const CUISINE_OPTIONS = ['Italian', 'Chinese', 'Indian', 'Mexican', 'Japanese', 'American', 'Thai', 'Mediterranean', 'Other'];
 
@@ -204,7 +205,7 @@ export default function RestaurantsPage() {
               {restaurants.map((r) => (
                 <div className="card" key={r.id}>
                   {r.imageUrl ? (
-                    <img src={r.imageUrl} alt={r.name} className="card-img" />
+                    <img src={getImageUrl(r.imageUrl)} alt={r.name} className="card-img" />
                   ) : (
                     <div className="card-img-placeholder">No image</div>
                   )}

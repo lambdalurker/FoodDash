@@ -1,8 +1,19 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
 });
+
+// Helper to construct full URL for images/uploads
+export const getImageUrl = (path) => {
+  if (!path) return '';
+  if (path.startsWith('http') || path.startsWith('blob:') || path.startsWith('data:')) return path;
+  
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
+  // Remove trailing /api or /api/ if present
+  const base = baseUrl.replace(/\/api\/?$/, '');
+  return `${base}${path}`;
+};
 
 // Attach JWT token to every request if present
 api.interceptors.request.use((config) => {

@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import ErrorMessage from '../components/ErrorMessage';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ImagePreview from '../components/ImagePreview';
+import { getImageUrl } from '../api/client';
 
 /* ── constants ───────────────────────────────────────────── */
 const CUISINE_OPTIONS  = ['Italian','Chinese','Indian','Mexican','Japanese','American','Thai','Mediterranean','Other'];
@@ -315,7 +316,7 @@ export default function OwnerPortalPage() {
           <div className="card-grid">
             {restaurants.map((r) => (
               <div className="card" key={r.id}>
-                {r.imageUrl ? <img src={r.imageUrl} alt={r.name} className="card-img" />
+                {r.imageUrl ? <img src={getImageUrl(r.imageUrl)} alt={r.name} className="card-img" />
                   : <div className="card-img-placeholder">No image</div>}
                 <div className="card-body">
                   <div className="card-title-row">

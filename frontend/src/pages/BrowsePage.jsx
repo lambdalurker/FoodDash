@@ -6,6 +6,7 @@ import { getReviews, createReview } from '../api/reviews';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import ErrorMessage from '../components/ErrorMessage';
+import { getImageUrl } from '../api/client';
 
 const CUISINE_OPTIONS = ['Italian','Chinese','Indian','Mexican','Japanese','American','Thai','Mediterranean','Other'];
 
@@ -221,7 +222,7 @@ export default function BrowsePage() {
 
         <div className="restaurant-header">
           {selected.imageUrl
-            ? <img src={selected.imageUrl} alt={selected.name} className="restaurant-hero" />
+            ? <img src={getImageUrl(selected.imageUrl)} alt={selected.name} className="restaurant-hero" />
             : <div className="restaurant-hero-placeholder" />}
           <div className="restaurant-header-info">
             <h1>{selected.name}</h1>
@@ -261,7 +262,7 @@ export default function BrowsePage() {
                 {visibleItems.map((item) => (
                   <div className="menu-card" key={item.id}>
                     {item.imageUrl
-                      ? <img src={item.imageUrl} alt={item.name} className="menu-card-img" />
+                      ? <img src={getImageUrl(item.imageUrl)} alt={item.name} className="menu-card-img" />
                       : <div className="menu-card-img-placeholder" />}
                     <div className="menu-card-body">
                       <div className="menu-card-name">{item.name}</div>
@@ -466,7 +467,7 @@ export default function BrowsePage() {
           {restaurants.map((r) => (
             <button key={r.id} className="card card-clickable" onClick={() => openRestaurant(r)}>
               {r.imageUrl
-                ? <img src={r.imageUrl} alt={r.name} className="card-img" />
+                ? <img src={getImageUrl(r.imageUrl)} alt={r.name} className="card-img" />
                 : <div className="card-img-placeholder">No image</div>}
               <div className="card-body">
                 <div className="card-title-row">
